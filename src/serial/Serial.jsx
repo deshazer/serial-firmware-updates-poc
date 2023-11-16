@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useSerial } from './SerialProvider';
+import { Link } from 'react-router-dom';
 
 const Serial = () => {
   const [isUpdating, setIsUpdating] = React.useState(false);
@@ -7,6 +8,20 @@ const Serial = () => {
   const serial = useSerial();
   React.useEffect(() => serial?.disconnect, [serial]);
   console.log('🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:', serial);
+
+  if (!serial.canUseSerial) {
+    return (
+      <>
+        <h1>Serial</h1>
+        <p>
+          <Link to="/" style={{ color: 'white' }}>
+            &lt; Home
+          </Link>
+        </p>
+        <p>Web serial is not supported in this browser.</p>
+      </>
+    );
+  }
 
   async function getFirmwareFile() {
     const firmwareUrl =
@@ -33,6 +48,10 @@ const Serial = () => {
     await serial.connect();
   };
 
+  const handleClosePort = () => {
+    serial.disconnect();
+  };
+
   const handleStartFirmwareUpdate = async () => {
     try {
       setIsUpdating(true);
@@ -49,27 +68,47 @@ const Serial = () => {
     }
   };
 
+  const handleNewSerialMessage = () => {};
+
   return (
     <>
       <h1>Serial</h1>
+      <p>
+        <Link to="/" style={{ color: 'white' }}>
+          &lt; Home
+        </Link>
+      </p>
 
-      <div>
-        <button
-          onClick={handleOpenPort}
-          disabled={serial.portState !== 'closed'}
-        >
-          Open Port
-        </button>
-        <p>
-          COM Port Status: <b>{serial.portState}</b>
-        </p>
-      </div>
       <hr />
-      <div>
-        <button onClick={handleStartFirmwareUpdate} disabled={isUpdating}>
-          Start Firmware Update
-        </button>
-      </div>
+      {serial.canUseSerial ? (
+        <>
+          <div>
+            <button
+              onClick={handleOpenPort}
+              disabled={serial.portState !== 'closed'}
+            >
+              Open Port
+            </button>
+            <button
+              onClick={handleClosePort}
+              disabled={serial.portState !== 'open'}
+            >
+              Close Port
+            </button>
+            <p>
+              COM Port Status: <b>{serial.portState}</b>
+            </p>
+          </div>
+          <hr />
+          <div>
+            <button onClick={handleStartFirmwareUpdate} disabled={isUpdating}>
+              Start Firmware Update
+            </button>
+          </div>
+        </>
+      ) : (
+        <p>Web serial is not supported in this browser.</p>
+      )}
     </>
   );
 };

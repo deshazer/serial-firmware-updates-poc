@@ -1,4 +1,13 @@
 body {
+  margin: 1rem 3rem;
   background-color: rgb(45, 49, 49);
   color: white;
+}
+
+div {
+  margin: 2rem 0;
+}
+
+button {
+  margin: 0 0.5rem;
 }

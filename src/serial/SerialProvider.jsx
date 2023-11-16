@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 // https://web.dev/serial/
 // https://reillyeon.github.io/serial/#onconnect-attribute-0
 // https://codelabs.developers.google.com/codelabs/web-serial
+// credit: https://gist.github.com/joshpensky/426d758c5779ac641d1d09f9f5894153
 
 // export type PortState = "closed" | "closing" | "open" | "opening";
 
@@ -70,9 +71,7 @@ const SerialProvider = ({ children }) => {
    */
   const readUntilClosed = async (port) => {
     if (port.readable) {
-      const textDecoder = new TextDecoderStream();
-      const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-      readerRef.current = textDecoder.readable.getReader();
+      readerRef.current = port.readable.getReader();
 
       try {
         while (true) {
@@ -91,7 +90,21 @@ const SerialProvider = ({ children }) => {
         readerRef.current.releaseLock();
       }
 
-      await readableStreamClosed.catch(() => {}); // Ignore the error
+      // await readableStreamClosed.catch(() => {}); // Ignore the error
+    }
+  };
+
+  /**
+   *
+   * @param {Uint8Array} data
+   */
+  const writeData = async (data) => {
+    const port = portRef.current;
+
+    if (portState === 'open' && port.writable) {
+      const writer = port.writable.getWriter();
+      await writer.write(data);
+      writer.releaseLock();
     }
   };
 
@@ -238,6 +251,7 @@ const SerialProvider = ({ children }) => {
         portState,
         connect: manualConnectToPort,
         disconnect: manualDisconnectFromPort,
+        write: writeData,
       }}
     >
       {children}

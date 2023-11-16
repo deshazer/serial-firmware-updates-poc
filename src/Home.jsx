@@ -5,7 +5,11 @@ const Home = () => {
   return (
     <>
       <h1>Home</h1>
-      <Link to="/serial">Serial</Link>
+      <p>
+        <Link to="/serial" style={{ color: 'white' }}>
+          Serial &gt;
+        </Link>
+      </p>
     </>
   );
 };
