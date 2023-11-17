@@ -6,8 +6,8 @@ const Home = () => {
     <>
       <h1>Home</h1>
       <p>
-        <Link to="/serial" style={{ color: 'white' }}>
-          Serial &gt;
+        <Link to="/firmware" style={{ color: 'white' }}>
+          Firmware &gt;
         </Link>
       </p>
     </>

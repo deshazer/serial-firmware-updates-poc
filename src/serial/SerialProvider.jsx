@@ -39,7 +39,7 @@ export const useSerial = () => useContext(SerialContext);
 const SerialProvider = ({ children }) => {
   const [canUseSerial] = useState(() => 'serial' in navigator);
 
-  const [portState, setPortState] = useState('closed');
+  const [portState, setPortState] = useState('closed'); // "closed" | "closing" | "open" | "opening";
   const [hasTriedAutoconnect, setHasTriedAutoconnect] = useState(false);
   const [hasManuallyDisconnected, setHasManuallyDisconnected] = useState(false);
 
@@ -95,9 +95,9 @@ const SerialProvider = ({ children }) => {
             Array.from(subscribersRef.current).forEach(([, callback]) => {
               callback({ value: data, timestamp });
             });
-          }
+          };
 
-          if (value.length < byteCommandArrayLength) {
+          if (value && value.length < byteCommandArrayLength) {
             const newChunk = new Uint8Array(chunk.length + value.length);
             newChunk.set(chunk);
             newChunk.set(value, chunk.length);
@@ -111,7 +111,6 @@ const SerialProvider = ({ children }) => {
             processData(value);
             chunk = new Uint8Array(0);
           }
-
         }
       } catch (error) {
         console.error(error);
@@ -130,10 +129,14 @@ const SerialProvider = ({ children }) => {
   const writeData = async (data) => {
     const port = portRef.current;
 
-    if (portState === 'open' && port.writable) {
-      const writer = port.writable.getWriter();
-      await writer.write(data);
-      writer.releaseLock();
+    try {
+      if (portState === 'open' && port.writable) {
+        const writer = port.writable.getWriter();
+        await writer.write(data);
+        writer.releaseLock();
+      }
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -142,10 +145,12 @@ const SerialProvider = ({ children }) => {
    */
   const openPort = async (port) => {
     try {
-      await port.open({ baudRate: 115200, bufferSize: 60 });
-      portRef.current = port;
-      setPortState('open');
-      setHasManuallyDisconnected(false);
+      if (portState === 'closed') {
+        await port.open({ baudRate: 115200, bufferSize: 60 });
+        portRef.current = port;
+        setPortState('open');
+        setHasManuallyDisconnected(false);
+      }
     } catch (error) {
       setPortState('closed');
       console.error('Could not open port');
@@ -200,21 +205,25 @@ const SerialProvider = ({ children }) => {
     if (canUseSerial && portState === 'open') {
       const port = portRef.current;
       if (port) {
-        setPortState('closing');
+        try {
+          setPortState('closing');
 
-        // Cancel any reading from port
-        readerRef.current?.cancel();
-        await readerClosedPromiseRef.current;
-        readerRef.current = null;
+          // Cancel any reading from port
+          readerRef.current?.cancel();
+          await readerClosedPromiseRef.current;
+          readerRef.current = null;
 
-        // Close and nullify the port
-        await port.close();
-        portRef.current = null;
-
-        // Update port state
-        setHasManuallyDisconnected(true);
-        setHasTriedAutoconnect(false);
-        setPortState('closed');
+          // Close and nullify the port
+          await port.close().catch(() => {});
+          portRef.current = null;
+        } catch (error) {
+          console.error(error);
+        } finally {
+          // Update port state
+          setHasManuallyDisconnected(true);
+          setHasTriedAutoconnect(false);
+          setPortState('closed');
+        }
       }
     }
   };

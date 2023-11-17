@@ -1,6 +1,5 @@
-import Serial from './serial/Serial';
 import Home from './Home';
-import SerialProvider from './serial/SerialProvider';
+import FirmwareUpdater from './firmware/FirmwareUpdater';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 const router = createBrowserRouter([
@@ -9,12 +8,9 @@ const router = createBrowserRouter([
     element: <Home />,
   },
   {
-    path: 'serial',
-    element: (
-      <SerialProvider>
-        <Serial />
-      </SerialProvider>
-    ),
+    path: 'firmware',
+    element: <FirmwareUpdater />,
+   
   },
 ]);
 function App() {
