@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { byteCommandArrayLength } from './serialMessages';
 
 // RESOURCES:
 // https://web.dev/serial/
@@ -73,16 +74,44 @@ const SerialProvider = ({ children }) => {
     if (port.readable) {
       readerRef.current = port.readable.getReader();
 
+      let chunk = new Uint8Array(0);
+
       try {
         while (true) {
           const { value, done } = await readerRef.current.read();
+          console.log(
+            '🚀 ~ file: SerialProvider.jsx:79 ~ readUntilClosed ~ done:',
+            done
+          );
+          console.log(
+            '🚀 ~ file: SerialProvider.jsx:79 ~ readUntilClosed ~ value:',
+            value
+          );
           if (done) {
             break;
           }
-          const timestamp = Date.now();
-          Array.from(subscribersRef.current).forEach(([name, callback]) => {
-            callback({ value, timestamp });
-          });
+          const processData = (data) => {
+            const timestamp = Date.now();
+            Array.from(subscribersRef.current).forEach(([, callback]) => {
+              callback({ value: data, timestamp });
+            });
+          }
+
+          if (value.length < byteCommandArrayLength) {
+            const newChunk = new Uint8Array(chunk.length + value.length);
+            newChunk.set(chunk);
+            newChunk.set(value, chunk.length);
+            chunk = newChunk;
+
+            if (chunk.length >= byteCommandArrayLength) {
+              processData(chunk);
+              chunk = new Uint8Array(0);
+            }
+          } else {
+            processData(value);
+            chunk = new Uint8Array(0);
+          }
+
         }
       } catch (error) {
         console.error(error);
@@ -90,7 +119,7 @@ const SerialProvider = ({ children }) => {
         readerRef.current.releaseLock();
       }
 
-      // await readableStreamClosed.catch(() => {}); // Ignore the error
+      // await port.close().catch(() => {}); // Ignore the error
     }
   };
 
@@ -113,7 +142,7 @@ const SerialProvider = ({ children }) => {
    */
   const openPort = async (port) => {
     try {
-      await port.open({ baudRate: 115200 });
+      await port.open({ baudRate: 115200, bufferSize: 60 });
       portRef.current = port;
       setPortState('open');
       setHasManuallyDisconnected(false);

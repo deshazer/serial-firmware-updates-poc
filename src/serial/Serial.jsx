@@ -1,13 +1,35 @@
 import * as React from 'react';
 import { useSerial } from './SerialProvider';
 import { Link } from 'react-router-dom';
+import { updateCommand_stm32, byteCommandArrayLength } from './serialMessages';
 
 const Serial = () => {
   const [isUpdating, setIsUpdating] = React.useState(false);
+  const [firmwareFile, setFirmwareFile] = React.useState(false);
 
   const serial = useSerial();
-  React.useEffect(() => serial?.disconnect, [serial]);
   console.log('🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:', serial);
+
+  // React.useEffect(() => {
+  //   return () => {
+  //     console.log('Disconnecting...');
+  //     serial?.disconnect();
+  //   };
+  // }, [serial]);
+
+  React.useEffect(() => {
+    let unsubscribe;
+    if (serial.portState === 'open') {
+      console.log('Subscribing...');
+      unsubscribe = serial.subscribe(handleNewSerialMessage);
+    }
+    return () => {
+      if (unsubscribe) {
+        console.log('Unsubscribing...');
+        unsubscribe();
+      }
+    };
+  }, [serial]);
 
   if (!serial.canUseSerial) {
     return (
@@ -61,6 +83,10 @@ const Serial = () => {
         '🚀 ~ file: Serial.jsx:41 ~ handleStartFirmwareUpdate ~ firmwareBytes:',
         firmwareBytes
       );
+      if (firmwareBytes) {
+        setFirmwareFile(firmwareBytes);
+        serial.write(updateCommand_stm32);
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -68,7 +94,16 @@ const Serial = () => {
     }
   };
 
-  const handleNewSerialMessage = () => {};
+  const handleNewSerialMessage = ({ value, timestamp }) => {
+    console.log(
+      '🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ timestamp:',
+      timestamp
+    );
+    console.log(
+      '🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:',
+      value
+    );
+  };
 
   return (
     <>
@@ -104,6 +139,7 @@ const Serial = () => {
             <button onClick={handleStartFirmwareUpdate} disabled={isUpdating}>
               Start Firmware Update
             </button>
+            {isUpdating && <p>Updating...</p>}
           </div>
         </>
       ) : (
