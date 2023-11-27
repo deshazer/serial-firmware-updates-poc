@@ -1,31 +1,30 @@
-import * as React from 'react';
-import { Link } from 'react-router-dom';
-import Serial from '../serial/Serial';
-import SerialProvider from '../serial/SerialProvider';
-import withFirmwareFile from './withFirmwareFile';
+import * as React from "react";
+import { Link } from "react-router-dom";
+import Serial from "../serial/Serial";
+import SerialProvider from "../serial/SerialProvider";
 
 const FirmwareUpdater = () => {
-  const [firmwareType, setFirmwareType] = React.useState('');
+  const [firmwareType, setFirmwareType] = React.useState("stm32");
 
-  const SerialWithFirmware = React.memo(withFirmwareFile(Serial, firmwareType));
   return (
     <>
       <h1>Firmware Updater</h1>
       <p>
-        <Link to="/" style={{ color: 'white' }}>
+        <Link to="/" style={{ color: "white" }}>
           &lt; Home
         </Link>
       </p>
       <div>
-        <button onClick={() => setFirmwareType('stm32')}>
-          Download STM32 Firmware
-        </button>
-        <button onClick={() => setFirmwareType('tms320')}>
-          Download TMS320 Firmware
-        </button>
+        <select
+          onChange={(e) => setFirmwareType(e.target.value)}
+          value={firmwareType}
+        >
+          <option value="stm32">STM32</option>
+          <option value="tms320">TMS320</option>
+        </select>
       </div>
       <SerialProvider>
-        <SerialWithFirmware />
+        <Serial firmwareType={firmwareType} />
       </SerialProvider>
     </>
   );

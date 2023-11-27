@@ -1,32 +1,34 @@
-import * as React from 'react';
-import { useSerial } from './SerialProvider';
-import { Link } from 'react-router-dom';
-import { updateCommand_stm32, byteCommandArrayLength } from './serialMessages';
-import * as serialMessages from './serialMessages';
+import * as React from "react";
+import { useSerial } from "./SerialProvider";
+import { Link } from "react-router-dom";
+import { updateCommand_stm32, byteCommandArrayLength } from "./serialMessages";
+import * as serialMessages from "./serialMessages";
+import { getFirmwareFile } from "../firmware/getFirmwareFile";
 
 const MAX_RETRIES = 3;
 
 const UpdateStatus = {
-  Ready: 'ready',
-  Awaiting_UpdateCommand_Ack: 'awaitingUpdateCommand_ACK',
-  Awaiting_FlashErase_Ack: 'awaitingFlashErase_ACK',
-  Awaiting_DataWritten_Ack: 'awaitingDataWritten_ACK',
-  Awaiting_DataComplete_Ack: 'awaitingDataComplete_ACK',
-  Awaiting_FlashVerification_Ack: 'awaitingFlashVerification_ACK',
-  Awaiting_RestartInverter_Ack: 'awaitingRestartInverter_ACK',
-  Done: 'done',
-  Error: 'error',
+  Ready: "ready",
+  Awaiting_UpdateCommand_Ack: "awaitingUpdateCommand_ACK",
+  Awaiting_FlashErase_Ack: "awaitingFlashErase_ACK",
+  Awaiting_DataWritten_Ack: "awaitingDataWritten_ACK",
+  Awaiting_DataComplete_Ack: "awaitingDataComplete_ACK",
+  Awaiting_FlashVerification_Ack: "awaitingFlashVerification_ACK",
+  Awaiting_RestartInverter_Ack: "awaitingRestartInverter_ACK",
+  Done: "done",
+  Error: "error",
 };
 
-const Serial = React.memo(function Serial({ firmwareFile }) {
+const Serial = React.memo(function Serial({ firmwareType }) {
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [percentComplete, setPercentComplete] = React.useState(0);
   const [firmwareUpdateStatus, setFirmwareUpdateStatus] = React.useState(
     UpdateStatus.Ready
   );
+  const [statusMsg, setStatusMsg] = React.useState("");
 
   // Use refs to store data that doesn't affect the UI
-  // const firmwareFile = React.useRef(new Uint8Array());
+  const firmwareFile = React.useRef(new Uint8Array());
   const fileIndex = React.useRef(0);
   const currentCommand = React.useRef(new Uint8Array());
   const expectedResponse = React.useRef(new Uint8Array());
@@ -35,74 +37,44 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
   const retries = React.useRef(0);
 
   const serial = useSerial();
-  console.log('🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:', serial);
+  console.log("🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:", serial);
 
-  React.useEffect(() => {
-    console.log('Using effect...');
-    return () => {
-      if (serial && serial.portState === 'open') {
-        console.log('Disconnecting...');
-        serial?.disconnect();
-      }
-    };
-  }, [serial]);
+  // React.useEffect(() => {
+  //   console.log('Using effect...');
+  //   return () => {
+  //     if (serial && serial.portState === 'open') {
+  //       console.log('Disconnecting...');
+  //       serial?.disconnect();
+  //     }
+  //   };
+  // }, [serial]);
 
   React.useEffect(() => {
     let unsubscribe;
-    if (serial.portState === 'open') {
-      console.log('Subscribing...');
+    if (serial.portState === "open") {
+      console.log("Subscribing...");
       unsubscribe = serial.subscribe(handleNewSerialMessage);
     }
     return () => {
       if (unsubscribe) {
-        console.log('Unsubscribing...');
+        console.log("Unsubscribing...");
         unsubscribe();
       }
     };
-  }, [serial]);
-
-  if (!serial.canUseSerial) {
-    return (
-      <>
-        <h1>Serial</h1>
-        <p>
-          <Link to="/" style={{ color: 'white' }}>
-            &lt; Home
-          </Link>
-        </p>
-        <p>Web serial is not supported in this browser.</p>
-      </>
-    );
-  }
-
-  const handleOpenPort = async () => {
-    await serial.connect();
-  };
-
-  const handleClosePort = () => {
-    serial.disconnect();
-  };
-
-  const handleTimeout = async () => {
-    console.log('Timeout!');
-    if (retries.current < MAX_RETRIES) {
-      console.log('Retrying...');
-      retries.current++;
-      await serial.write(currentCommand.current);
-      setTimeout(handleTimeout, timeout);
-    } else {
-      console.log('Too many retries!');
-      setFirmwareUpdateStatus(UpdateStatus.Error);
-    }
-  };
+  }, [serial.portState]);
 
   const handleStartFirmwareUpdate = async () => {
     try {
       setIsUpdating(true);
       setPercentComplete(0);
 
+      setStatusMsg("Downloading firmware file...");
+      firmwareFile.current = await getFirmwareFile(firmwareType);
+
       if (firmwareFile.current?.length) {
         fileIndex.current = 0;
+        retries.current = 0;
+        setStatusMsg("Initiating firmware update...");
         setFirmwareUpdateStatus(UpdateStatus.Awaiting_UpdateCommand_Ack);
         expectedResponse.current = serialMessages.updateCommand_Ack;
         currentCommand.current = serialMessages.updateCommand_stm32;
@@ -114,6 +86,28 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
       console.error(error);
     }
   };
+
+  const handleOpenPort = async () => {
+    await serial.connect();
+  };
+
+  const handleClosePort = () => {
+    serial.disconnect();
+  };
+
+  async function handleTimeout() {
+    console.log("Timeout!");
+    if (retries.current < MAX_RETRIES) {
+      console.log("Retrying...");
+      retries.current++;
+      await serial.write(currentCommand.current);
+      setTimeout(handleTimeout, timeout.current);
+    } else {
+      console.log("Too many retries!");
+      setStatusMsg("Inverter timed out. Please try again.");
+      setFirmwareUpdateStatus(UpdateStatus.Error);
+    }
+  }
 
   function getNextDataWriteCommand() {
     const nextDataWriteCommand = new Uint8Array(
@@ -165,11 +159,11 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
 
   const handleNewSerialMessage = ({ value, timestamp }) => {
     console.log(
-      '🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ timestamp:',
+      "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ timestamp:",
       timestamp
     );
     console.log(
-      '🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:',
+      "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:",
       value
     );
 
@@ -189,6 +183,7 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
 
       switch (firmwareUpdateStatus) {
         case UpdateStatus.Awaiting_UpdateCommand_Ack: {
+          setStatusMsg("Erasing flash...");
           setFirmwareUpdateStatus(UpdateStatus.Awaiting_FlashErase_Ack);
           expectedResponse.current = serialMessages.flashEraseCommand_Ack;
           currentCommand.current = serialMessages.flashEraseCommand_stm32;
@@ -198,6 +193,8 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
           break;
         }
         case UpdateStatus.Awaiting_FlashErase_Ack: {
+          setStatusMsg("Writing firmware file...");
+          setFirmwareUpdateStatus(UpdateStatus.Awaiting_FlashErase_Ack);
           setFirmwareUpdateStatus(UpdateStatus.Awaiting_DataWritten_Ack);
           expectedResponse.current = serialMessages.dataWritten_Ack;
           currentCommand.current = getNextDataWriteCommand();
@@ -229,6 +226,7 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
           break;
         }
         case UpdateStatus.Awaiting_DataComplete_Ack: {
+          setStatusMsg("Verifying flash...");
           setFirmwareUpdateStatus(UpdateStatus.Awaiting_FlashVerification_Ack);
           expectedResponse.current =
             serialMessages.flashVerificationCommand_Ack;
@@ -238,6 +236,7 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
           break;
         }
         case UpdateStatus.Awaiting_FlashVerification_Ack: {
+          setStatusMsg("Restarting inverter...");
           setFirmwareUpdateStatus(UpdateStatus.Awaiting_RestartInverter_Ack);
           expectedResponse.current = serialMessages.restartInverterCommand_Ack;
           currentCommand.current = serialMessages.restartInverterCommand;
@@ -248,6 +247,9 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
         }
         case UpdateStatus.Awaiting_RestartInverter_Ack: {
           // We're done!
+          setStatusMsg(
+            "Update complete! Please wait 15 seconds for the inverter to restart."
+          );
           setFirmwareUpdateStatus(UpdateStatus.Done);
           setPercentComplete(100);
           break;
@@ -280,13 +282,13 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
           <div>
             <button
               onClick={handleOpenPort}
-              disabled={serial.portState !== 'closed'}
+              disabled={serial.portState !== "closed"}
             >
               Open Port
             </button>
             <button
               onClick={handleClosePort}
-              disabled={serial.portState !== 'open'}
+              disabled={serial.portState !== "open"}
             >
               Close Port
             </button>
@@ -296,11 +298,14 @@ const Serial = React.memo(function Serial({ firmwareFile }) {
           </div>
           <hr />
           <div>
-            <button onClick={handleStartFirmwareUpdate} disabled={isUpdating}>
+            <h3>Firmware Update State</h3>
+
+            <button onClick={handleStartFirmwareUpdate}>
               Start Firmware Update
             </button>
             <div>
-              <p>Status: {firmwareUpdateStatus}</p>
+              <p>Status: {firmwareUpdateStatus?.toUpperCase()}</p>
+              <p>Message: {statusMsg}</p>
               <p>Complete: {percentComplete}%</p>
             </div>
           </div>
