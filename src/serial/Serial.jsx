@@ -54,6 +54,9 @@ const Serial = React.memo(function Serial({ firmwareType }) {
     if (serial.portState === "open") {
       console.log("Subscribing...");
       unsubscribe = serial.subscribe(handleNewSerialMessage);
+    } else {
+      clearTimeout(timerId.current);
+      expectedResponse.current = new Uint8Array();
     }
     return () => {
       if (unsubscribe) {
@@ -61,7 +64,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         unsubscribe();
       }
     };
-  }, [serial.portState]);
+  }, [serial.portState, handleNewSerialMessage]);
 
   const handleStartFirmwareUpdate = async () => {
     try {
@@ -80,7 +83,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         currentCommand.current = serialMessages.updateCommand_stm32;
         await serial.write(currentCommand.current);
 
-        timerId.current = setTimeout(handleTimeout, timeout.current);
+        // timerId.current = setTimeout(handleTimeout, timeout.current);
       }
     } catch (error) {
       console.error(error);
@@ -101,7 +104,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
       console.log("Retrying...");
       retries.current++;
       await serial.write(currentCommand.current);
-      setTimeout(handleTimeout, timeout.current);
+      timerId.current = setTimeout(handleTimeout, timeout.current);
     } else {
       console.log("Too many retries!");
       setStatusMsg("Inverter timed out. Please try again.");
@@ -157,16 +160,11 @@ const Serial = React.memo(function Serial({ firmwareType }) {
     return nextDataWriteCommand;
   }
 
-  const handleNewSerialMessage = ({ value, timestamp }) => {
-    console.log(
-      "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ timestamp:",
-      timestamp
-    );
-    console.log(
-      "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:",
-      value
-    );
-
+  async function handleNewSerialMessage({ value }) {
+    const sleep = (time) =>
+      new Promise((resolve) => {
+        setTimeout(resolve, time);
+      });
     //* Let's make a state machine
     if (!expectedResponse.current || !value) return;
 
@@ -179,28 +177,32 @@ const Serial = React.memo(function Serial({ firmwareType }) {
       )
     ) {
       // We got the expected response
+      console.log(
+        "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:",
+        `Status: ${firmwareUpdateStatus}`,
+        Array.from(value, (x) => x.toString(16).padStart(2, "0"))
+      );
       clearTimeout(timerId.current);
 
       switch (firmwareUpdateStatus) {
         case UpdateStatus.Awaiting_UpdateCommand_Ack: {
           setStatusMsg("Erasing flash...");
           setFirmwareUpdateStatus(UpdateStatus.Awaiting_FlashErase_Ack);
+          setPercentComplete(2);
           expectedResponse.current = serialMessages.flashEraseCommand_Ack;
           currentCommand.current = serialMessages.flashEraseCommand_stm32;
-          serial.write(currentCommand.current);
           timeout.current = 5000;
-          setPercentComplete(2);
+          await serial.write(currentCommand.current);
           break;
         }
         case UpdateStatus.Awaiting_FlashErase_Ack: {
           setStatusMsg("Writing firmware file...");
-          setFirmwareUpdateStatus(UpdateStatus.Awaiting_FlashErase_Ack);
           setFirmwareUpdateStatus(UpdateStatus.Awaiting_DataWritten_Ack);
+          setPercentComplete(5);
           expectedResponse.current = serialMessages.dataWritten_Ack;
           currentCommand.current = getNextDataWriteCommand();
-          serial.write(currentCommand.current);
           timeout.current = 1000;
-          setPercentComplete(5);
+          await serial.write(currentCommand.current);
           break;
         }
         case UpdateStatus.Awaiting_DataWritten_Ack: {
@@ -222,7 +224,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
             setPercentComplete(97);
           }
 
-          serial.write(currentCommand.current);
+          await serial.write(currentCommand.current);
           break;
         }
         case UpdateStatus.Awaiting_DataComplete_Ack: {
@@ -231,7 +233,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           expectedResponse.current =
             serialMessages.flashVerificationCommand_Ack;
           currentCommand.current = serialMessages.flashVerificationCommand;
-          serial.write(currentCommand.current);
+          await serial.write(currentCommand.current);
           setPercentComplete(98);
           break;
         }
@@ -240,7 +242,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           setFirmwareUpdateStatus(UpdateStatus.Awaiting_RestartInverter_Ack);
           expectedResponse.current = serialMessages.restartInverterCommand_Ack;
           currentCommand.current = serialMessages.restartInverterCommand;
-          serial.write(currentCommand.current);
+          await serial.write(currentCommand.current);
           timeout.current = 3000;
           setPercentComplete(99);
           break;
@@ -257,19 +259,50 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         case UpdateStatus.Error:
         case UpdateStatus.Done: {
           console.log(`Current status is ${firmwareUpdateStatus}`);
-          break;
+          clearTimeout(timerId.current);
+          return;
         }
+        case UpdateStatus.Ready:
+          break;
         default: {
           console.error(`Unexpected status ${firmwareUpdateStatus}`);
         }
       }
-      timerId.current = setTimeout(handleTimeout, timeout.current);
+
+      // timerId.current = setTimeout(handleTimeout, timeout.current);
+    } else {
+      // We didn't receive the command we expected
+      // This actually happens quite a lot. The inverter will continue to send the old response
+      // until it receives and processes the next command. So, we just ignore it
+      // unless it's a very specific failure response.
+      const byteCode = receivedMessage[1];
+
+      const ErrorByteCodes = {
+        0x09: "Fatal Error - Resend Image.",
+        0xfa: "Flash verify error.",
+        0xfb: "Flash unlock failure.",
+        0xfd: "Flash erase failure.",
+        0xfe: "Flash programming failure.",
+      };
+
+      if (byteCode in ErrorByteCodes) {
+        console.log(
+          "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:",
+          `Error code: ${ErrorByteCodes[byteCode]}`,
+          Array.from(value, (x) => x.toString(16).padStart(2, "0"))
+        );
+        clearTimeout(timerId.current);
+        setFirmwareUpdateStatus(UpdateStatus.Error);
+        setStatusMsg(
+          ErrorByteCodes[byteCode] + "\nPlease retry the update process."
+        );
+      }
     }
-  };
+  }
 
   function arraysAreEqual(a, b) {
-    if (a.length !== b.length) return false;
-    return a.every((value, index) => value === b[index]);
+    // if (a.length !== b.length) return false;
+    return b.every((value, index) => value === a[index]);
   }
 
   return (

@@ -79,14 +79,14 @@ const SerialProvider = ({ children }) => {
       try {
         while (true) {
           const { value, done } = await readerRef.current.read();
-          console.log(
-            '🚀 ~ file: SerialProvider.jsx:79 ~ readUntilClosed ~ done:',
-            done
-          );
-          console.log(
-            '🚀 ~ file: SerialProvider.jsx:79 ~ readUntilClosed ~ value:',
-            value
-          );
+          // console.log(
+          //   '🚀 ~ file: SerialProvider.jsx:79 ~ readUntilClosed ~ done:',
+          //   done
+          // );
+          // console.log(
+          //   '🚀 ~ file: SerialProvider.jsx:79 ~ readUntilClosed ~ value:',
+          //   value
+          // );
           if (done) {
             break;
           }
@@ -242,6 +242,22 @@ const SerialProvider = ({ children }) => {
     setPortState('closed');
   };
 
+  function startReadUntilClosed() {
+    const port = portRef.current;
+    if (portState === 'open' && port) {
+      // When the port is open, read until closed
+      const aborted = { current: false };
+      readerRef.current?.cancel();
+      readerClosedPromiseRef.current.then(() => {
+        if (!aborted.current) {
+          readerRef.current = null;
+          readerClosedPromiseRef.current = readUntilClosed(port);
+        }
+      
+      });
+    }
+  }
+
   // Handles attaching the reader and disconnect listener when the port is open
   useEffect(() => {
     const port = portRef.current;
@@ -268,17 +284,17 @@ const SerialProvider = ({ children }) => {
   }, [portState]);
 
   // Tries to auto-connect to a port, if possible
-  useEffect(() => {
-    if (
-      canUseSerial &&
-      !hasManuallyDisconnected &&
-      !hasTriedAutoconnect &&
-      portState === 'closed'
-    ) {
-      autoConnectToPort();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canUseSerial, hasManuallyDisconnected, hasTriedAutoconnect, portState]);
+  // useEffect(() => {
+  //   if (
+  //     canUseSerial &&
+  //     !hasManuallyDisconnected &&
+  //     !hasTriedAutoconnect &&
+  //     portState === 'closed'
+  //   ) {
+  //     autoConnectToPort();
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [canUseSerial, hasManuallyDisconnected, hasTriedAutoconnect, portState]);
 
   return (
     <SerialContext.Provider
