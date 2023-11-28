@@ -3,6 +3,11 @@ import { Link } from "react-router-dom";
 import Serial from "../serial/Serial";
 import SerialProvider from "../serial/SerialProvider";
 
+const firmwareTypes = [
+  { name: "STM32", value: "stm32" },
+  { name: "TMS320", value: "tms320" },
+];
+
 const FirmwareUpdater = () => {
   const [firmwareType, setFirmwareType] = React.useState("stm32");
 
@@ -19,8 +24,11 @@ const FirmwareUpdater = () => {
           onChange={(e) => setFirmwareType(e.target.value)}
           value={firmwareType}
         >
-          <option value="stm32">STM32</option>
-          <option value="tms320">TMS320</option>
+          {firmwareTypes.map((fType) => (
+            <option value={fType.value} key={fType.value}>
+              {fType.name}
+            </option>
+          ))}
         </select>
       </div>
       <SerialProvider>

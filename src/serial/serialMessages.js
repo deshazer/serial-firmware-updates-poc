@@ -44,9 +44,9 @@ let startAddress;
 export const lengthByte_stm32 = 0x30;
 export const lengthByte_tms320 = 0x18;
 let lengthByte;
-export const commandAndLengthBytes = new Uint8Array([
-  0x03,
-  0x03,
-  lengthByte_stm32,
-  0x00,
-]);
+// export const commandAndLengthBytes = new Uint8Array([
+//   0x03,
+//   0x03,
+//   lengthByte_stm32,
+//   0x00,
+// ]);

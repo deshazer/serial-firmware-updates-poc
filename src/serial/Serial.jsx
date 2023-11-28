@@ -1,7 +1,6 @@
 import * as React from "react";
 import { useSerial } from "./SerialProvider";
 import { Link } from "react-router-dom";
-import { updateCommand_stm32, byteCommandArrayLength } from "./serialMessages";
 import * as serialMessages from "./serialMessages";
 import { getFirmwareFile } from "../firmware/getFirmwareFile";
 
@@ -35,6 +34,19 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   const timerId = React.useRef(0);
   const timeout = React.useRef(1000);
   const retries = React.useRef(0);
+
+  let updateCommand = serialMessages.updateCommand_stm32;
+  let flashEraseCommand = serialMessages.flashEraseCommand_stm32;
+  let startAddr = serialMessages.startAddr_stm32;
+  let lengthByte = serialMessages.lengthByte_stm32;
+
+  if (firmwareType === "tms320") {
+    updateCommand = serialMessages.updateCommand_tms320;
+    flashEraseCommand = serialMessages.flashEraseCommand_tms320;
+    startAddr = serialMessages.startAddr_tms320;
+    lengthByte = serialMessages.lengthByte_tms320;
+  }
+  const commandAndLengthBytes = new Uint8Array([0x03, 0x03, lengthByte, 0x00]);
 
   const serial = useSerial();
   console.log("🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:", serial);
@@ -80,7 +92,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         setStatusMsg("Initiating firmware update...");
         setFirmwareUpdateStatus(UpdateStatus.Awaiting_UpdateCommand_Ack);
         expectedResponse.current = serialMessages.updateCommand_Ack;
-        currentCommand.current = serialMessages.updateCommand_stm32;
+        currentCommand.current = updateCommand;
         await serial.write(currentCommand.current);
 
         // timerId.current = setTimeout(handleTimeout, timeout.current);
@@ -127,8 +139,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
      * For the stm32 file, you use a length of 48 (0x30) and increment the destination address as expected.
      */
     const nextAddress =
-      serialMessages.startAddr_stm32 +
-      (fileIndex.current / fileChunkSize) * serialMessages.lengthByte_stm32;
+      startAddr + (fileIndex.current / fileChunkSize) * lengthByte;
     const nextAddrBytes = new Uint8Array(new Uint32Array([nextAddress]).buffer);
 
     // Make sure you don't start reading past the end of the file
@@ -138,13 +149,10 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         : firmwareFile.current.length - fileIndex.current;
 
     // Put the 2-byte command and 2-byte length at the beginning
-    nextDataWriteCommand.set(serialMessages.commandAndLengthBytes, 0);
+    nextDataWriteCommand.set(commandAndLengthBytes, 0);
 
     // Then the 4-byte destination address
-    nextDataWriteCommand.set(
-      nextAddrBytes,
-      serialMessages.commandAndLengthBytes.length
-    );
+    nextDataWriteCommand.set(nextAddrBytes, commandAndLengthBytes.length);
 
     // Then the data from the file
     nextDataWriteCommand.set(
@@ -152,7 +160,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         fileIndex.current,
         fileIndex.current + chunkSize
       ),
-      serialMessages.commandAndLengthBytes.length + nextAddrBytes.length
+      commandAndLengthBytes.length + nextAddrBytes.length
     );
 
     fileIndex.current += chunkSize;
@@ -190,7 +198,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           setFirmwareUpdateStatus(UpdateStatus.Awaiting_FlashErase_Ack);
           setPercentComplete(2);
           expectedResponse.current = serialMessages.flashEraseCommand_Ack;
-          currentCommand.current = serialMessages.flashEraseCommand_stm32;
+          currentCommand.current = flashEraseCommand;
           timeout.current = 5000;
           await serial.write(currentCommand.current);
           break;
@@ -307,8 +315,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
 
   return (
     <>
-      <h1>Serial</h1>
-
+      <h3>Serial</h3>
       <hr />
       {serial.canUseSerial ? (
         <>
