@@ -32,7 +32,8 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   const currentCommand = React.useRef(new Uint8Array());
   const expectedResponse = React.useRef(new Uint8Array());
   const timerId = React.useRef(0);
-  const timeout = React.useRef(1000);
+  const timeout = 10 * 1000;
+
   const retries = React.useRef(0);
 
   let updateCommand = serialMessages.updateCommand_stm32;
@@ -49,7 +50,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   const commandAndLengthBytes = new Uint8Array([0x03, 0x03, lengthByte, 0x00]);
 
   const serial = useSerial();
-  console.log("🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:", serial);
+  // console.log("🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:", serial);
 
   // React.useEffect(() => {
   //   console.log('Using effect...');
@@ -66,9 +67,6 @@ const Serial = React.memo(function Serial({ firmwareType }) {
     if (serial.portState === "open") {
       console.log("Subscribing...");
       unsubscribe = serial.subscribe(handleNewSerialMessage);
-    } else {
-      clearTimeout(timerId.current);
-      expectedResponse.current = new Uint8Array();
     }
     return () => {
       if (unsubscribe) {
@@ -77,6 +75,20 @@ const Serial = React.memo(function Serial({ firmwareType }) {
       }
     };
   }, [serial.portState, handleNewSerialMessage]);
+
+  React.useEffect(() => {
+    if (
+      serial.portState !== "open" &&
+      firmwareUpdateStatus !== UpdateStatus.Ready &&
+      firmwareUpdateStatus !== UpdateStatus.Done
+    ) {
+      clearTimeout(timerId.current);
+      setFirmwareUpdateStatus(UpdateStatus.Error);
+      setStatusMsg("Device Disconnected. Please try again.");
+      setIsUpdating(false);
+      expectedResponse.current = new Uint8Array();
+    }
+  }, [serial.portState]);
 
   const handleStartFirmwareUpdate = async () => {
     try {
@@ -95,11 +107,11 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         currentCommand.current = updateCommand;
         await serial.write(currentCommand.current);
 
-        // timerId.current = setTimeout(handleTimeout, timeout.current);
+        timerId.current = setTimeout(handleTimeout, timeout);
       }
     } catch (error) {
       console.error(error);
-      setIsUpdating(false)
+      setIsUpdating(false);
     }
   };
 
@@ -113,16 +125,9 @@ const Serial = React.memo(function Serial({ firmwareType }) {
 
   async function handleTimeout() {
     console.log("Timeout!");
-    // if (retries.current < MAX_RETRIES) {
-    //   console.log("Retrying...");
-    //   retries.current++;
-    //   await serial.write(currentCommand.current);
-    //   timerId.current = setTimeout(handleTimeout, timeout.current);
-    // } else {
-    //   console.log("Too many retries!");
-    //   setStatusMsg("Inverter timed out. Please try again.");
-    //   setFirmwareUpdateStatus(UpdateStatus.Error);
-    // }
+    setStatusMsg("Inverter timed out. Please try again.");
+    setFirmwareUpdateStatus(UpdateStatus.Error);
+    setIsUpdating(false);
   }
 
   function getNextDataWriteCommand() {
@@ -170,12 +175,14 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   }
 
   async function handleNewSerialMessage({ value }) {
-    const sleep = (time) =>
-      new Promise((resolve) => {
-        setTimeout(resolve, time);
-      });
     //* Let's make a state machine
-    if (!expectedResponse.current || !value) return;
+    if (
+      !expectedResponse.current ||
+      !expectedResponse.current.length ||
+      !value ||
+      !value.length
+    )
+      return;
 
     const receivedMessage = value;
 
@@ -186,11 +193,12 @@ const Serial = React.memo(function Serial({ firmwareType }) {
       )
     ) {
       // We got the expected response
-      console.log(
-        "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:",
-        `Status: ${firmwareUpdateStatus}`,
-        Array.from(value, (x) => x.toString(16).padStart(2, "0"))
-      );
+      // console.log(
+      //   "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:",
+      //   `Status: ${firmwareUpdateStatus}`,
+      //   Array.from(value, (x) => x.toString(16).padStart(2, "0"))
+      // );
+      console.log("Clearing timeout", firmwareUpdateStatus);
       clearTimeout(timerId.current);
 
       switch (firmwareUpdateStatus) {
@@ -200,8 +208,9 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           setPercentComplete(2);
           expectedResponse.current = serialMessages.flashEraseCommand_Ack;
           currentCommand.current = flashEraseCommand;
-          timeout.current = 5000;
           await serial.write(currentCommand.current);
+
+          timerId.current = setTimeout(handleTimeout, timeout);
           break;
         }
         case UpdateStatus.Awaiting_FlashErase_Ack: {
@@ -210,8 +219,9 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           setPercentComplete(5);
           expectedResponse.current = serialMessages.dataWritten_Ack;
           currentCommand.current = getNextDataWriteCommand();
-          timeout.current = 1000;
           await serial.write(currentCommand.current);
+
+          timerId.current = setTimeout(handleTimeout, timeout);
           break;
         }
         case UpdateStatus.Awaiting_DataWritten_Ack: {
@@ -234,6 +244,9 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           }
 
           await serial.write(currentCommand.current);
+          //
+          timerId.current = setTimeout(handleTimeout, timeout);
+
           break;
         }
         case UpdateStatus.Awaiting_DataComplete_Ack: {
@@ -244,16 +257,20 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           currentCommand.current = serialMessages.flashVerificationCommand;
           await serial.write(currentCommand.current);
           setPercentComplete(98);
+
+          timerId.current = setTimeout(handleTimeout, timeout);
+
           break;
         }
         case UpdateStatus.Awaiting_FlashVerification_Ack: {
           setStatusMsg("Restarting inverter...");
           setFirmwareUpdateStatus(UpdateStatus.Awaiting_RestartInverter_Ack);
+          setPercentComplete(99);
           expectedResponse.current = serialMessages.restartInverterCommand_Ack;
           currentCommand.current = serialMessages.restartInverterCommand;
           await serial.write(currentCommand.current);
-          timeout.current = 3000;
-          setPercentComplete(99);
+
+          timerId.current = setTimeout(handleTimeout, timeout);
           break;
         }
         case UpdateStatus.Awaiting_RestartInverter_Ack: {
@@ -262,13 +279,17 @@ const Serial = React.memo(function Serial({ firmwareType }) {
             "Update complete! Please wait 15 seconds for the inverter to restart."
           );
           setFirmwareUpdateStatus(UpdateStatus.Done);
+          setIsUpdating(false);
           setPercentComplete(100);
+
+          clearTimeout(timerId.current);
           break;
         }
         case UpdateStatus.Error:
         case UpdateStatus.Done: {
           setIsUpdating(false);
-          console.log(`Current status is ${firmwareUpdateStatus}`);
+          expectedResponse.current = new Uint8Array();
+
           clearTimeout(timerId.current);
           return;
         }
@@ -278,8 +299,6 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           console.error(`Unexpected status ${firmwareUpdateStatus}`);
         }
       }
-
-      // timerId.current = setTimeout(handleTimeout, timeout.current);
     } else {
       // We didn't receive the command we expected
       // This actually happens quite a lot. The inverter will continue to send the old response
@@ -301,6 +320,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           `Error code: ${ErrorByteCodes[byteCode]}`,
           Array.from(value, (x) => x.toString(16).padStart(2, "0"))
         );
+
         clearTimeout(timerId.current);
         setFirmwareUpdateStatus(UpdateStatus.Error);
         setIsUpdating(false);
@@ -312,7 +332,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   }
 
   function arraysAreEqual(a, b) {
-    // if (a.length !== b.length) return false;
+    if (a.length !== b.length) return false;
     return b.every((value, index) => value === a[index]);
   }
 

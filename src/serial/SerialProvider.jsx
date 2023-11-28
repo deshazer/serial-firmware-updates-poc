@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { byteCommandArrayLength } from './serialMessages';
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { byteCommandArrayLength } from "./serialMessages";
 
 // RESOURCES:
 // https://web.dev/serial/
@@ -29,7 +29,7 @@ export const SerialContext = createContext({
   hasTriedAutoconnect: false,
   connect: () => Promise.resolve(false),
   disconnect: () => {},
-  portState: 'closed',
+  portState: "closed",
   subscribe: () => () => {},
 });
 
@@ -37,9 +37,9 @@ export const useSerial = () => useContext(SerialContext);
 
 // interface SerialProviderProps {}
 const SerialProvider = ({ children }) => {
-  const [canUseSerial] = useState(() => 'serial' in navigator);
+  const [canUseSerial] = useState(() => "serial" in navigator);
 
-  const [portState, setPortState] = useState('closed'); // "closed" | "closing" | "open" | "opening";
+  const [portState, setPortState] = useState("closed"); // "closed" | "closing" | "open" | "opening";
   const [hasTriedAutoconnect, setHasTriedAutoconnect] = useState(false);
   const [hasManuallyDisconnected, setHasManuallyDisconnected] = useState(false);
 
@@ -75,18 +75,11 @@ const SerialProvider = ({ children }) => {
       readerRef.current = port.readable.getReader();
 
       let chunk = new Uint8Array(0);
-
       try {
         while (true) {
+
           const { value, done } = await readerRef.current.read();
-          // console.log(
-          //   '🚀 ~ file: SerialProvider.jsx:79 ~ readUntilClosed ~ done:',
-          //   done
-          // );
-          // console.log(
-          //   '🚀 ~ file: SerialProvider.jsx:79 ~ readUntilClosed ~ value:',
-          //   value
-          // );
+
           if (done) {
             break;
           }
@@ -130,7 +123,7 @@ const SerialProvider = ({ children }) => {
     const port = portRef.current;
 
     try {
-      if (portState === 'open' && port.writable) {
+      if (portState === "open" && port.writable) {
         const writer = port.writable.getWriter();
         await writer.write(data);
         writer.releaseLock();
@@ -145,21 +138,21 @@ const SerialProvider = ({ children }) => {
    */
   const openPort = async (port) => {
     try {
-      if (portState === 'closed') {
+      if (portState === "closed") {
         await port.open({ baudRate: 115200, bufferSize: 60 });
         portRef.current = port;
-        setPortState('open');
+        setPortState("open");
         setHasManuallyDisconnected(false);
       }
     } catch (error) {
-      setPortState('closed');
-      console.error('Could not open port');
+      setPortState("closed");
+      console.error("Could not open port");
     }
   };
 
   const manualConnectToPort = async () => {
-    if (canUseSerial && portState === 'closed') {
-      setPortState('opening');
+    if (canUseSerial && portState === "closed") {
+      setPortState("opening");
       const filters = [
         // Can identify the vendor and product IDs by plugging in the device and visiting: chrome://device-log/
         // the IDs will be labeled `vid` and `pid`, respectively
@@ -173,16 +166,16 @@ const SerialProvider = ({ children }) => {
         await openPort(port);
         return true;
       } catch (error) {
-        setPortState('closed');
-        console.error('User did not select port');
+        setPortState("closed");
+        console.error("User did not select port");
       }
     }
     return false;
   };
 
   const autoConnectToPort = async () => {
-    if (canUseSerial && portState === 'closed') {
-      setPortState('opening');
+    if (canUseSerial && portState === "closed") {
+      setPortState("opening");
       try {
         const availablePorts = await navigator.serial.getPorts();
         if (availablePorts.length) {
@@ -190,10 +183,10 @@ const SerialProvider = ({ children }) => {
           await openPort(port);
           return true;
         } else {
-          setPortState('closed');
+          setPortState("closed");
         }
       } catch (error) {
-        setPortState('closed');
+        setPortState("closed");
       } finally {
         setHasTriedAutoconnect(true);
       }
@@ -202,11 +195,11 @@ const SerialProvider = ({ children }) => {
   };
 
   const manualDisconnectFromPort = async () => {
-    if (canUseSerial && portState === 'open') {
+    if (canUseSerial && portState === "open") {
       const port = portRef.current;
       if (port) {
         try {
-          setPortState('closing');
+          setPortState("closing");
 
           // Cancel any reading from port
           readerRef.current?.cancel();
@@ -222,7 +215,7 @@ const SerialProvider = ({ children }) => {
           // Update port state
           setHasManuallyDisconnected(true);
           setHasTriedAutoconnect(false);
-          setPortState('closed');
+          setPortState("closed");
         }
       }
     }
@@ -239,12 +232,12 @@ const SerialProvider = ({ children }) => {
     readerClosedPromiseRef.current = Promise.resolve();
     portRef.current = null;
     setHasTriedAutoconnect(false);
-    setPortState('closed');
+    setPortState("closed");
   };
 
   function startReadUntilClosed() {
     const port = portRef.current;
-    if (portState === 'open' && port) {
+    if (portState === "open" && port) {
       // When the port is open, read until closed
       const aborted = { current: false };
       readerRef.current?.cancel();
@@ -253,7 +246,6 @@ const SerialProvider = ({ children }) => {
           readerRef.current = null;
           readerClosedPromiseRef.current = readUntilClosed(port);
         }
-      
       });
     }
   }
@@ -261,7 +253,7 @@ const SerialProvider = ({ children }) => {
   // Handles attaching the reader and disconnect listener when the port is open
   useEffect(() => {
     const port = portRef.current;
-    if (portState === 'open' && port) {
+    if (portState === "open" && port) {
       // When the port is open, read until closed
       const aborted = { current: false };
       readerRef.current?.cancel();
@@ -273,11 +265,11 @@ const SerialProvider = ({ children }) => {
       });
 
       // Attach a listener for when the device is disconnected
-      navigator.serial.addEventListener('disconnect', onPortDisconnect);
+      navigator.serial.addEventListener("disconnect", onPortDisconnect);
 
       return () => {
         aborted.current = true;
-        navigator.serial.removeEventListener('disconnect', onPortDisconnect);
+        navigator.serial.removeEventListener("disconnect", onPortDisconnect);
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
