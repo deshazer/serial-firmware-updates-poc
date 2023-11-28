@@ -99,6 +99,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
       }
     } catch (error) {
       console.error(error);
+      setIsUpdating(false)
     }
   };
 
@@ -112,16 +113,16 @@ const Serial = React.memo(function Serial({ firmwareType }) {
 
   async function handleTimeout() {
     console.log("Timeout!");
-    if (retries.current < MAX_RETRIES) {
-      console.log("Retrying...");
-      retries.current++;
-      await serial.write(currentCommand.current);
-      timerId.current = setTimeout(handleTimeout, timeout.current);
-    } else {
-      console.log("Too many retries!");
-      setStatusMsg("Inverter timed out. Please try again.");
-      setFirmwareUpdateStatus(UpdateStatus.Error);
-    }
+    // if (retries.current < MAX_RETRIES) {
+    //   console.log("Retrying...");
+    //   retries.current++;
+    //   await serial.write(currentCommand.current);
+    //   timerId.current = setTimeout(handleTimeout, timeout.current);
+    // } else {
+    //   console.log("Too many retries!");
+    //   setStatusMsg("Inverter timed out. Please try again.");
+    //   setFirmwareUpdateStatus(UpdateStatus.Error);
+    // }
   }
 
   function getNextDataWriteCommand() {
@@ -266,6 +267,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         }
         case UpdateStatus.Error:
         case UpdateStatus.Done: {
+          setIsUpdating(false);
           console.log(`Current status is ${firmwareUpdateStatus}`);
           clearTimeout(timerId.current);
           return;
@@ -301,6 +303,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         );
         clearTimeout(timerId.current);
         setFirmwareUpdateStatus(UpdateStatus.Error);
+        setIsUpdating(false);
         setStatusMsg(
           ErrorByteCodes[byteCode] + "\nPlease retry the update process."
         );
@@ -340,7 +343,10 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           <div>
             <h3>Firmware Update State</h3>
 
-            <button onClick={handleStartFirmwareUpdate}>
+            <button
+              onClick={handleStartFirmwareUpdate}
+              disabled={isUpdating || serial.portState !== "open"}
+            >
               Start Firmware Update
             </button>
             <div>
