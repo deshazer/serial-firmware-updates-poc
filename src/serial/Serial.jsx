@@ -198,7 +198,6 @@ const Serial = React.memo(function Serial({ firmwareType }) {
       //   `Status: ${firmwareUpdateStatus}`,
       //   Array.from(value, (x) => x.toString(16).padStart(2, "0"))
       // );
-      console.log("Clearing timeout", firmwareUpdateStatus);
       clearTimeout(timerId.current);
 
       switch (firmwareUpdateStatus) {
