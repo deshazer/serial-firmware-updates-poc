@@ -67,20 +67,20 @@ const Serial = React.memo(function Serial({ firmwareType }) {
     };
   });
 
-  // TODO: This belongs in an onDisconnect event handler passed to the SerialProvider
-  // React.useEffect(() => {
-  //   if (
-  //     serial.portState !== "open" &&
-  //     firmwareUpdateStatus !== UpdateStatus.Ready &&
-  //     firmwareUpdateStatus !== UpdateStatus.Done
-  //   ) {
-  //     clearTimeout(timerId.current);
-  //     setFirmwareUpdateStatus(UpdateStatus.Error);
-  //     setStatusMsg("Device Disconnected. Please try again.");
-  //     setIsUpdating(false);
-  //     expectedResponse.current = new Uint8Array();
-  //   }
-  // }, [serial.portState]);
+  // This is for catching and handling unexpected disconnect events
+  React.useEffect(() => {
+    if (
+      serial.portState === "closed" &&
+      serial.hasTriedAutoconnect &&
+      firmwareUpdateStatus !== UpdateStatus.Ready &&
+      firmwareUpdateStatus !== UpdateStatus.Done
+    ) {
+      clearTimeout(timerId.current);
+      setFirmwareUpdateStatus(UpdateStatus.Error);
+      setStatusMsg("Device Disconnected. Please try again.");
+      setIsUpdating(false);
+    }
+  }, [serial.portState, serial.hasTriedAutoconnect]);
 
   const handleStartFirmwareUpdate = async () => {
     try {
