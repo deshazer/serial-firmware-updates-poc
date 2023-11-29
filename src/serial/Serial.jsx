@@ -50,18 +50,31 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   const commandAndLengthBytes = new Uint8Array([0x03, 0x03, lengthByte, 0x00]);
 
   const serial = useSerial();
-  // console.log("🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:", serial);
 
-  // TODO: This needs to happen when we navigate away, not on re-render
-  // React.useEffect(() => {
-  //   console.log('Using effect...');
-  //   return () => {
-  //     if (serial && serial.portState === 'open') {
-  //       console.log('Disconnecting...');
-  //       serial?.disconnect();
-  //     }
-  //   };
-  // }, [serial]);
+  React.useEffect(() => {
+    if (
+      serial &&
+      serial.canUseSerial &&
+      !serial.hasManuallyDisconnected &&
+      !serial.hasTriedAutoconnect &&
+      serial.portState === "closed"
+    ) {
+      console.log("Auto connecting...");
+      serial.autoConnectToPort();
+    }
+
+    return () => {
+      if (serial && serial.portState === "open") {
+        console.log("Disconnecting...");
+        serial?.disconnect();
+      }
+    };
+  }, [
+    serial.canUseSerial,
+    serial.hasManuallyDisconnected,
+    serial.hasTriedAutoconnect,
+    serial.portState,
+  ]);
 
   React.useEffect(() => {
     let unsubscribe;
@@ -70,7 +83,6 @@ const Serial = React.memo(function Serial({ firmwareType }) {
       unsubscribe = serial.subscribe(handleNewSerialMessage);
     } else {
       clearTimeout(timerId.current);
-      // expectedResponse.current = new Uint8Array();
     }
     return () => {
       if (unsubscribe) {
