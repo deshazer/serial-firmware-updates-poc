@@ -11,11 +11,15 @@ export async function getFirmwareFile(firmwareType) {
       "https://lion-api.lionenergy.com/firmwares"
     );
 
+    if (!firmwareList || !firmwareList.length)
+      throw new Error("Unable to fetch firmware list from server.");
+
     const wcmHardwareList = firmwareList.find(
       (manufacturer) => manufacturer.name === "megarevo"
     )?.hardware;
 
-    if (!wcmHardwareList) throw new Error("No WCM hardware found");
+    if (!wcmHardwareList)
+      throw new Error("No WCM hardware found in firmware list.");
 
     // In production: Get version info from WCM and select the correct version
     // const correctWcmHardware = wcmHardwareList.find(hardware => hardware.hardware_version === wcm_hw_v);
@@ -44,5 +48,6 @@ export async function getFirmwareFile(firmwareType) {
   } catch (error) {
     console.log("Error retrieving firmware file");
     console.log(error);
+    throw error;
   }
 }
