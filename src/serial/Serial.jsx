@@ -69,7 +69,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
       unsubscribe = serial.subscribe(handleNewSerialMessage);
     } else {
       clearTimeout(timerId.current);
-      expectedResponse.current = new Uint8Array();
+      // expectedResponse.current = new Uint8Array();
     }
     return () => {
       if (unsubscribe) {
@@ -182,15 +182,9 @@ const Serial = React.memo(function Serial({ firmwareType }) {
 
   async function handleNewSerialMessage({ value }) {
     //* Let's make a state machine
-    if (
-      !expectedResponse.current ||
-      !expectedResponse.current.length ||
-      !value ||
-      !value.length
-    )
-      return;
-
     const receivedMessage = value;
+
+    if (!expectedResponse.current?.length || !receivedMessage?.length) return;
 
     if (
       arraysAreEqual(
@@ -249,7 +243,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           }
 
           await serial.write(currentCommand.current);
-          
+
           // timerId.current = setTimeout(handleTimeout, timeout);
 
           break;
