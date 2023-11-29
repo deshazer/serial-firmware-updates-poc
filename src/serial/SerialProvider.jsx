@@ -176,6 +176,10 @@ const SerialProvider = ({ children }) => {
   const autoConnectToPort = async () => {
     if (canUseSerial && portState === "closed") {
       setPortState("opening");
+      // If you try to auto-reconnect too soon after disconnect, it will fail
+      const sleep = (time) =>
+        new Promise((resolve) => setTimeout(resolve, time));
+      await sleep(500);
       try {
         const availablePorts = await navigator.serial.getPorts();
         if (availablePorts.length) {
@@ -276,17 +280,17 @@ const SerialProvider = ({ children }) => {
   }, [portState]);
 
   // Tries to auto-connect to a port, if possible
-  // useEffect(() => {
-  //   if (
-  //     canUseSerial &&
-  //     !hasManuallyDisconnected &&
-  //     !hasTriedAutoconnect &&
-  //     portState === 'closed'
-  //   ) {
-  //     autoConnectToPort();
-  //   }
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, [canUseSerial, hasManuallyDisconnected, hasTriedAutoconnect, portState]);
+  useEffect(() => {
+    if (
+      canUseSerial &&
+      !hasManuallyDisconnected &&
+      !hasTriedAutoconnect &&
+      portState === "closed"
+    ) {
+      autoConnectToPort();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canUseSerial, hasManuallyDisconnected, hasTriedAutoconnect, portState]);
 
   return (
     <SerialContext.Provider

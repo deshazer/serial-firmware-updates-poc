@@ -65,30 +65,34 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   React.useEffect(() => {
     let unsubscribe;
     if (serial.portState === "open") {
-      console.log("Subscribing...");
+      // console.log("Subscribing...");
       unsubscribe = serial.subscribe(handleNewSerialMessage);
+    } else {
+      clearTimeout(timerId.current);
+      expectedResponse.current = new Uint8Array();
     }
     return () => {
       if (unsubscribe) {
-        console.log("Unsubscribing...");
+        // console.log("Unsubscribing...");
         unsubscribe();
       }
     };
   }, [serial.portState, handleNewSerialMessage]);
 
-  React.useEffect(() => {
-    if (
-      serial.portState !== "open" &&
-      firmwareUpdateStatus !== UpdateStatus.Ready &&
-      firmwareUpdateStatus !== UpdateStatus.Done
-    ) {
-      clearTimeout(timerId.current);
-      setFirmwareUpdateStatus(UpdateStatus.Error);
-      setStatusMsg("Device Disconnected. Please try again.");
-      setIsUpdating(false);
-      expectedResponse.current = new Uint8Array();
-    }
-  }, [serial.portState]);
+  // TODO: This belongs in an onDisconnect event handler passed to the SerialProvider
+  // React.useEffect(() => {
+  //   if (
+  //     serial.portState !== "open" &&
+  //     firmwareUpdateStatus !== UpdateStatus.Ready &&
+  //     firmwareUpdateStatus !== UpdateStatus.Done
+  //   ) {
+  //     clearTimeout(timerId.current);
+  //     setFirmwareUpdateStatus(UpdateStatus.Error);
+  //     setStatusMsg("Device Disconnected. Please try again.");
+  //     setIsUpdating(false);
+  //     expectedResponse.current = new Uint8Array();
+  //   }
+  // }, [serial.portState]);
 
   const handleStartFirmwareUpdate = async () => {
     try {
@@ -112,6 +116,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
     } catch (error) {
       console.error(error);
       setIsUpdating(false);
+      setStatusMsg(error.message);
     }
   };
 
@@ -128,6 +133,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
     setStatusMsg("Inverter timed out. Please try again.");
     setFirmwareUpdateStatus(UpdateStatus.Error);
     setIsUpdating(false);
+    expectedResponse.current = new Uint8Array();
   }
 
   function getNextDataWriteCommand() {
@@ -209,7 +215,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           currentCommand.current = flashEraseCommand;
           await serial.write(currentCommand.current);
 
-          timerId.current = setTimeout(handleTimeout, timeout);
+          // timerId.current = setTimeout(handleTimeout, timeout);
           break;
         }
         case UpdateStatus.Awaiting_FlashErase_Ack: {
@@ -220,7 +226,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           currentCommand.current = getNextDataWriteCommand();
           await serial.write(currentCommand.current);
 
-          timerId.current = setTimeout(handleTimeout, timeout);
+          // timerId.current = setTimeout(handleTimeout, timeout);
           break;
         }
         case UpdateStatus.Awaiting_DataWritten_Ack: {
@@ -243,8 +249,8 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           }
 
           await serial.write(currentCommand.current);
-          //
-          timerId.current = setTimeout(handleTimeout, timeout);
+          
+          // timerId.current = setTimeout(handleTimeout, timeout);
 
           break;
         }
@@ -257,7 +263,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           await serial.write(currentCommand.current);
           setPercentComplete(98);
 
-          timerId.current = setTimeout(handleTimeout, timeout);
+          // timerId.current = setTimeout(handleTimeout, timeout);
 
           break;
         }
@@ -269,7 +275,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
           currentCommand.current = serialMessages.restartInverterCommand;
           await serial.write(currentCommand.current);
 
-          timerId.current = setTimeout(handleTimeout, timeout);
+          // timerId.current = setTimeout(handleTimeout, timeout);
           break;
         }
         case UpdateStatus.Awaiting_RestartInverter_Ack: {
