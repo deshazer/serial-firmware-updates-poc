@@ -52,6 +52,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   const serial = useSerial();
   // console.log("🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:", serial);
 
+  // TODO: This needs to happen when we navigate away, not on re-render
   // React.useEffect(() => {
   //   console.log('Using effect...');
   //   return () => {
@@ -65,7 +66,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   React.useEffect(() => {
     let unsubscribe;
     if (serial.portState === "open") {
-      // console.log("Subscribing...");
+      console.log("Subscribing...");
       unsubscribe = serial.subscribe(handleNewSerialMessage);
     } else {
       clearTimeout(timerId.current);
@@ -73,11 +74,11 @@ const Serial = React.memo(function Serial({ firmwareType }) {
     }
     return () => {
       if (unsubscribe) {
-        // console.log("Unsubscribing...");
+        console.log("Unsubscribing...");
         unsubscribe();
       }
     };
-  }, [serial.portState, handleNewSerialMessage]);
+  });
 
   // TODO: This belongs in an onDisconnect event handler passed to the SerialProvider
   // React.useEffect(() => {
@@ -126,6 +127,9 @@ const Serial = React.memo(function Serial({ firmwareType }) {
 
   const handleClosePort = () => {
     serial.disconnect();
+    setStatusMsg("Please open the port and try again.");
+    setFirmwareUpdateStatus(UpdateStatus.Ready);
+    setIsUpdating(false);
   };
 
   async function handleTimeout() {
@@ -287,8 +291,6 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         case UpdateStatus.Error:
         case UpdateStatus.Done: {
           setIsUpdating(false);
-          expectedResponse.current = new Uint8Array();
-
           clearTimeout(timerId.current);
           return;
         }
@@ -323,6 +325,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         clearTimeout(timerId.current);
         setFirmwareUpdateStatus(UpdateStatus.Error);
         setIsUpdating(false);
+        expectedResponse.current = new Uint8Array();
         setStatusMsg(
           ErrorByteCodes[byteCode] + "\nPlease retry the update process."
         );
