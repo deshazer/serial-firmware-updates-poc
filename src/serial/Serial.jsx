@@ -52,31 +52,6 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   const serial = useSerial();
 
   React.useEffect(() => {
-    if (
-      serial &&
-      serial.canUseSerial &&
-      !serial.hasManuallyDisconnected &&
-      !serial.hasTriedAutoconnect &&
-      serial.portState === "closed"
-    ) {
-      console.log("Auto connecting...");
-      serial.autoConnectToPort();
-    }
-
-    return () => {
-      if (serial && serial.portState === "open") {
-        console.log("Disconnecting...");
-        serial?.disconnect();
-      }
-    };
-  }, [
-    serial.canUseSerial,
-    serial.hasManuallyDisconnected,
-    serial.hasTriedAutoconnect,
-    serial.portState,
-  ]);
-
-  React.useEffect(() => {
     let unsubscribe;
     if (serial.portState === "open") {
       console.log("Subscribing...");
