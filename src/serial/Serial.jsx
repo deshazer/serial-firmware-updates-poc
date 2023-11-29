@@ -1,10 +1,7 @@
 import * as React from "react";
 import { useSerial } from "./SerialProvider";
-import { Link } from "react-router-dom";
 import * as serialMessages from "./serialMessages";
-import { getFirmwareFile } from "../firmware/getFirmwareFile";
-
-const MAX_RETRIES = 3;
+import { getFirmwareFile } from "../helpers";
 
 const UpdateStatus = {
   Ready: "ready",
@@ -100,10 +97,13 @@ const Serial = React.memo(function Serial({ firmwareType }) {
         await serial.write(currentCommand.current);
 
         timerId.current = setTimeout(handleTimeout, timeout);
+      } else {
+        throw new Error("Error downloading firmware file. Please try again.");
       }
     } catch (error) {
       console.error(error);
       setIsUpdating(false);
+      setFirmwareUpdateStatus(UpdateStatus.Error);
       setStatusMsg(error.message);
     }
   };
