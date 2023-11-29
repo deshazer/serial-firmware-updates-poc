@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { byteCommandArrayLength } from "./serialMessages";
+import { sleep } from "../helpers";
 
 // RESOURCES:
 // https://web.dev/serial/
@@ -121,14 +122,20 @@ const SerialProvider = ({ children }) => {
   const writeData = async (data) => {
     const port = portRef.current;
 
-    try {
-      if (portState === "open" && port.writable) {
-        const writer = port.writable.getWriter();
-        await writer.write(data);
-        writer.releaseLock();
+    if (portState === "open" && port.writable) {
+      let writer;
+      let retries = 3;
+      while (!writer && retries--) {
+        try {
+          writer = port.writable.getWriter();
+        } catch (error) {
+          console.error(error);
+          await sleep(10);
+        }
       }
-    } catch (error) {
-      console.error(error);
+      // const writer = port.writable.getWriter();
+      await writer.write(data);
+      writer.releaseLock();
     }
   };
 
@@ -176,8 +183,6 @@ const SerialProvider = ({ children }) => {
     if (canUseSerial && portState === "closed") {
       setPortState("opening");
       // If you try to auto-reconnect too soon after disconnect, it will fail
-      const sleep = (time) =>
-        new Promise((resolve) => setTimeout(resolve, time));
       await sleep(500);
       try {
         const availablePorts = await navigator.serial.getPorts();
