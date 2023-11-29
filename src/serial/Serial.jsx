@@ -49,7 +49,7 @@ const Serial = React.memo(function Serial({ firmwareType }) {
   const commandAndLengthBytes = new Uint8Array([0x03, 0x03, lengthByte, 0x00]);
 
   const serial = useSerial();
-  console.log("🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:", serial);
+  // console.log("🚀 ~ file: Serial.jsx:13 ~ Serial ~ serial:", serial);
 
   // React.useEffect(() => {
   //   console.log('Using effect...');
@@ -185,11 +185,11 @@ const Serial = React.memo(function Serial({ firmwareType }) {
       )
     ) {
       // We got the expected response
-      console.log(
-        "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:",
-        `Status: ${firmwareUpdateStatus}`,
-        Array.from(value, (x) => x.toString(16).padStart(2, "0"))
-      );
+      // console.log(
+      //   "🚀 ~ file: Serial.jsx:72 ~ handleNewSerialMessage ~ value:",
+      //   `Status: ${firmwareUpdateStatus}`,
+      //   Array.from(value, (x) => x.toString(16).padStart(2, "0"))
+      // );
       clearTimeout(timerId.current);
 
       switch (firmwareUpdateStatus) {
